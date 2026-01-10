@@ -169,7 +169,7 @@
           const url = URL.createObjectURL(new Blob([arr], {type: 'application/pdf'}));
           window.open(url, '_blank');
         };
-      }).processRequest(sheetId, student['Emis No'], type, formData);
+      }).processRequest(sheetId, student['Emis Id'], type, formData);
     }
 
     function toggle(id, show) {
