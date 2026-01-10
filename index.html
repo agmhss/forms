@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .loader { border-top-color: #2563eb; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4 font-sans">
+
+  <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
+    <div class="bg-blue-600 p-8 text-white text-center">
+      <h1 class="text-2xl font-bold tracking-tight">Draft Assistant</h1>
+      <p class="text-blue-100 text-sm mt-1">EMIS-Based Document Generator</p>
+    </div>
+
+    <div class="p-8">
+      <div id="step1" class="space-y-4">
+        <div>
+          <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">Sheet ID</label>
+          <input type="text" id="sheetId" placeholder="Enter Google Sheet ID" class="w-full mt-2 border-2 border-slate-100 p-4 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-50 focus:outline-none transition-all">
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">EMIS Number</label>
+          <input type="text" id="emis" placeholder="Enter Student EMIS" class="w-full mt-2 border-2 border-slate-100 p-4 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-50 focus:outline-none transition-all">
+        </div>
+        <button onclick="lookup()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all active:scale-95">Verify Identity</button>
+      </div>
+
+      <div id="step2" class="hidden space-y-5">
+        <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+          <p class="text-blue-900 font-bold"><span id="dispName"></span></p>
+          <p class="text-blue-600 text-sm"><span id="dispClass"></span></p>
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">Document Type</label>
+          <select id="docType" onchange="toggleFields()" class="w-full mt-2 border-2 border-slate-100 p-4 rounded-2xl outline-none bg-slate-50">
+            <option value="LEAVE">Leave Application</option>
+            <option value="TC">Transfer Certificate (T.C)</option>
+            <option value="BONAFIDE">Bonafide Certificate</option>
+          </select>
+        </div>
+
+        <div id="leaveFields" class="space-y-3">
+          <div class="flex gap-2">
+            <input type="date" id="start" class="w-1/2 border p-3 rounded-xl text-sm">
+            <input type="date" id="end" class="w-1/2 border p-3 rounded-xl text-sm">
+          </div>
+          <input type="text" id="subject" placeholder="Application Subject" class="w-full border p-3 rounded-xl text-sm">
+          <textarea id="reason" placeholder="Reason for leave..." class="w-full border p-3 rounded-xl text-sm" rows="2"></textarea>
+        </div>
+
+        <div id="tcFields" class="hidden space-y-3">
+          <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Date of Leaving</label>
+          <input type="date" id="leavingDate" class="w-full border p-3 rounded-xl text-sm">
+          <select id="conduct" class="w-full border p-3 rounded-xl text-sm">
+            <option value="Good">Conduct: Good</option>
+            <option value="Satisfactory">Satisfactory</option>
+            <option value="Excellent">Excellent</option>
+          </select>
+          <input type="text" id="tcReason" placeholder="Reason for Leaving" class="w-full border p-3 rounded-xl text-sm">
+        </div>
+
+        <div id="bonafideFields" class="hidden space-y-3">
+          <input type="text" id="purpose" placeholder="Purpose (e.g. Bank Account, Passport)" class="w-full border p-3 rounded-xl text-sm">
+        </div>
+
+        <button onclick="generate()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-100 transition-all">Generate PDF</button>
+      </div>
+
+      <div id="successState" class="hidden text-center space-y-5 py-4">
+        <div class="inline-block bg-emerald-100 p-4 rounded-full">
+          <svg class="w-10 h-10 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        </div>
+        <h2 class="text-xl font-bold text-slate-800">Draft Completed</h2>
+        <div class="flex gap-2">
+          <button onclick="location.reload()" class="w-1/2 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold">New Task</button>
+          <button id="printBtn" class="w-1/2 bg-blue-600 text-white py-3 rounded-xl font-bold">Open/Print</button>
+        </div>
+      </div>
+
+      <div id="loader" class="hidden flex flex-col items-center py-10">
+        <div class="loader rounded-full border-4 border-slate-100 h-12 w-12"></div>
+        <p class="text-xs font-bold text-slate-400 mt-4 tracking-widest uppercase">Processing Request</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let student = null;
+    let sheetId = null;
+
+    function lookup() {
+      sheetId = document.getElementById('sheetId').value;
+      const emis = document.getElementById('emis').value;
+      if (!sheetId || !emis) {
+        alert("Please enter both Sheet ID and EMIS Number.");
+        return;
+      }
+      toggle('step1', false);
+      toggle('loader', true);
+      google.script.run.withSuccessHandler(res => {
+        toggle('loader', false);
+        if (!res) {
+          alert("Student EMIS not found!");
+          toggle('step1', true);
+          return;
+        }
+        student = res;
+        document.getElementById('dispName').innerText = res.Name;
+        document.getElementById('dispClass').innerText = "Class: " + res.Class + " | Section: " + res.Section;
+        toggle('step2', true);
+        toggleFields(); // Initialize field visibility
+      }).getStudentData(sheetId, emis);
+    }
+
+    function toggleFields() {
+      const type = document.getElementById('docType').value;
+      document.getElementById('leaveFields').classList.toggle('hidden', type !== 'LEAVE');
+      document.getElementById('tcFields').classList.toggle('hidden', type !== 'TC');
+      document.getElementById('bonafideFields').classList.toggle('hidden', type !== 'BONAFIDE');
+    }
+
+    function generate() {
+      const type = document.getElementById('docType').value;
+      const formData = {
+        startDate: document.getElementById('start').value,
+        endDate: document.getElementById('end').value,
+        reason: document.getElementById('reason').value,
+        subject: document.getElementById('subject').value,
+        leavingDate: document.getElementById('leavingDate').value,
+        conduct: document.getElementById('conduct').value,
+        tcReason: document.getElementById('tcReason').value,
+        purpose: document.getElementById('purpose').value
+      };
+      
+      // Basic validation based on type
+      if (type === 'LEAVE' && (!formData.startDate || !formData.endDate || !formData.reason)) {
+        alert("Please fill in start date, end date, and reason for leave.");
+        return;
+      } else if (type === 'TC' && (!formData.leavingDate || !formData.tcReason)) {
+        alert("Please fill in date of leaving and reason for TC.");
+        return;
+      } else if (type === 'BONAFIDE' && !formData.purpose) {
+        alert("Please fill in the purpose for the bonafide certificate.");
+        return;
+      }
+      
+      toggle('step2', false);
+      toggle('loader', true);
+      
+      google.script.run.withSuccessHandler(base64 => {
+        toggle('loader', false);
+        toggle('successState', true);
+        
+        // Trigger Download
+        const link = document.createElement('a');
+        link.href = 'data:application/pdf;base64,' + base64;
+        link.download = `${type}_${student.Name}.pdf`;
+        link.click();
+        
+        // Open/Print Logic
+        document.getElementById('printBtn').onclick = () => {
+          const bin = atob(base64);
+          const arr = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+          const url = URL.createObjectURL(new Blob([arr], {type: 'application/pdf'}));
+          window.open(url, '_blank');
+        };
+      }).processRequest(sheetId, student['Emis No'], type, formData);
+    }
+
+    function toggle(id, show) {
+      document.getElementById(id).classList.toggle('hidden', !show);
+    }
+  </script>
+</body>
+</html>
