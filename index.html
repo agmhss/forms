@@ -1,180 +1,535 @@
+the following code works perfecting. I want to add a few more features to it such as application and issuance of Bonafide Certifate, application for Transfer Certificate, and various Club Activities Certificates. Add a button to move to Application and Certificate Section. There the user selects what he wants and gets the required fields pre-filled in the templates from pdf-lib. If possible, integrate this into the following code:
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    .loader { border-top-color: #2563eb; animation: spin 1s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Sheet Data Retriever</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
-<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4 font-sans">
+<body class="bg-gray-50 p-8">
 
-  <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
-    <div class="bg-blue-600 p-8 text-white text-center">
-      <h1 class="text-2xl font-bold tracking-tight">Draft Assistant</h1>
-      <p class="text-blue-100 text-sm mt-1">EMIS-Based Document Generator</p>
+    <div class="max-w-6xl mx-auto bg-white p-6 rounded-lg shadow-md">
+        <h1 class="text-2xl font-bold mb-6 text-gray-800">Advanced Google Sheet Data Retriever</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Google Sheet ID</label>
+                <input type="text" id="sheetId" placeholder="Enter Sheet ID..." class="mt-1 block w-full border border-gray-300 rounded-md p-2 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                <p class="text-xs text-gray-500 mt-1">Ensure the sheet is "Published to Web" as CSV.</p>
+            </div>
+            <div class="flex items-end">
+                <button onclick="fetchData()" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition">Fetch Data</button>
+            </div>
+        </div>
+
+        <hr class="my-6">
+
+        <div id="controls" class="hidden space-y-6">
+            <!-- Column Selection -->
+            <div>
+                <div class="flex justify-between items-center mb-3">
+                    <h3 class="text-lg font-semibold text-gray-800">Column Selection</h3>
+                    <div class="space-x-2">
+                        <button onclick="selectAllColumns()" class="bg-green-600 text-white px-3 py-1 text-sm rounded hover:bg-green-700">Select All</button>
+                        <button onclick="deselectAllColumns()" class="bg-gray-600 text-white px-3 py-1 text-sm rounded hover:bg-gray-700">Deselect All</button>
+                    </div>
+                </div>
+                <div id="columnCheckboxes" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-40 overflow-y-auto p-2 border rounded-md bg-gray-50"></div>
+            </div>
+
+            <!-- Multi-Column Filters -->
+            <div>
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">Filters (AND logic – contains)</h3>
+                <div id="filterRows" class="space-y-2"></div>
+                <button onclick="addFilterRow()" class="mt-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">+ Add Filter</button>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-2 pt-2">
+                <button onclick="applyFilters()" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 font-medium">Apply Filters</button>
+                <button onclick="clearAllFilters()" class="bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-700 font-medium">Clear All</button>
+                <button onclick="downloadPDF()" class="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700 font-medium">Download PDF</button>
+            </div>
+        </div>
+
+        <div class="mt-8 overflow-x-auto">
+            <table id="dataTable" class="min-w-full divide-y divide-gray-200 border text-sm">
+                <thead class="bg-gray-100" id="tableHead"></thead>
+                <tbody class="divide-y divide-gray-200" id="tableBody"></tbody>
+            </table>
+        </div>
+
+        <div id="stats" class="mt-4 text-sm text-gray-600 hidden">
+            Showing <span id="rowCount">0</span> of <span id="totalCount">0</span> rows
+        </div>
+    </div>
+<!-- Add to <head> -->
+<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+<!-- ==================== NEW SECTION ==================== -->
+<div id="certificateSection" class="hidden mt-10">
+
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-gray-800">Certificate Application & Generation</h2>
+        <button onclick="backToMain()" 
+                class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
+            ← Back to Main View
+        </button>
     </div>
 
-    <div class="p-8">
-      <div id="step1" class="space-y-4">
-        <div>
-          <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">Sheet ID</label>
-          <input type="text" id="sheetId" placeholder="Enter Google Sheet ID" class="w-full mt-2 border-2 border-slate-100 p-4 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-50 focus:outline-none transition-all">
-        </div>
-        <div>
-          <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">EMIS Number</label>
-          <input type="text" id="emis" placeholder="Enter Student EMIS" class="w-full mt-2 border-2 border-slate-100 p-4 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-50 focus:outline-none transition-all">
-        </div>
-        <button onclick="lookup()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-200 transition-all active:scale-95">Verify Identity</button>
-      </div>
+    <!-- Certificate Type Selection -->
+    <div class="mb-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
+        <h3 class="text-lg font-semibold mb-4">Select Certificate Type</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <button onclick="startCertificateApplication('bonafide')"
+                    class="bg-white border-2 border-indigo-500 text-indigo-700 hover:bg-indigo-50 p-6 rounded-xl text-center transition">
+                <div class="text-2xl mb-2">📜</div>
+                <div class="font-medium">Bonafide Certificate</div>
+            </button>
 
-      <div id="step2" class="hidden space-y-5">
-        <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100">
-          <p class="text-blue-900 font-bold"><span id="dispName"></span></p>
-          <p class="text-blue-600 text-sm"><span id="dispClass"></span></p>
-        </div>
+            <button onclick="startCertificateApplication('tc')"
+                    class="bg-white border-2 border-purple-500 text-purple-700 hover:bg-purple-50 p-6 rounded-xl text-center transition">
+                <div class="text-2xl mb-2">🎓</div>
+                <div>Transfer Certificate (TC)</div>
+            </button>
 
-        <div>
-          <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">Document Type</label>
-          <select id="docType" onchange="toggleFields()" class="w-full mt-2 border-2 border-slate-100 p-4 rounded-2xl outline-none bg-slate-50">
-            <option value="LEAVE">Leave Application</option>
-            <option value="TC">Transfer Certificate (T.C)</option>
-            <option value="BONAFIDE">Bonafide Certificate</option>
-          </select>
-        </div>
+            <button onclick="startCertificateApplication('club')"
+                    class="bg-white border-2 border-green-500 text-green-700 hover:bg-green-50 p-6 rounded-xl text-center transition">
+                <div class="text-2xl mb-2">🏆</div>
+                <div>Club Activity Certificate</div>
+            </button>
 
-        <div id="leaveFields" class="space-y-3">
-          <div class="flex gap-2">
-            <input type="date" id="start" class="w-1/2 border p-3 rounded-xl text-sm">
-            <input type="date" id="end" class="w-1/2 border p-3 rounded-xl text-sm">
-          </div>
-          <input type="text" id="subject" placeholder="Application Subject" class="w-full border p-3 rounded-xl text-sm">
-          <textarea id="reason" placeholder="Reason for leave..." class="w-full border p-3 rounded-xl text-sm" rows="2"></textarea>
+            <!-- You can add more types later -->
         </div>
-
-        <div id="tcFields" class="hidden space-y-3">
-          <label class="text-[10px] font-bold text-slate-400 uppercase ml-1">Date of Leaving</label>
-          <input type="date" id="leavingDate" class="w-full border p-3 rounded-xl text-sm">
-          <select id="conduct" class="w-full border p-3 rounded-xl text-sm">
-            <option value="Good">Conduct: Good</option>
-            <option value="Satisfactory">Satisfactory</option>
-            <option value="Excellent">Excellent</option>
-          </select>
-          <input type="text" id="tcReason" placeholder="Reason for Leaving" class="w-full border p-3 rounded-xl text-sm">
-        </div>
-
-        <div id="bonafideFields" class="hidden space-y-3">
-          <input type="text" id="purpose" placeholder="Purpose (e.g. Bank Account, Passport)" class="w-full border p-3 rounded-xl text-sm">
-        </div>
-
-        <button onclick="generate()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-100 transition-all">Generate PDF</button>
-      </div>
-
-      <div id="successState" class="hidden text-center space-y-5 py-4">
-        <div class="inline-block bg-emerald-100 p-4 rounded-full">
-          <svg class="w-10 h-10 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-        </div>
-        <h2 class="text-xl font-bold text-slate-800">Draft Completed</h2>
-        <div class="flex gap-2">
-          <button onclick="location.reload()" class="w-1/2 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold">New Task</button>
-          <button id="printBtn" class="w-1/2 bg-blue-600 text-white py-3 rounded-xl font-bold">Open/Print</button>
-        </div>
-      </div>
-
-      <div id="loader" class="hidden flex flex-col items-center py-10">
-        <div class="loader rounded-full border-4 border-slate-100 h-12 w-12"></div>
-        <p class="text-xs font-bold text-slate-400 mt-4 tracking-widest uppercase">Processing Request</p>
-      </div>
     </div>
-  </div>
 
-  <script>
-    let student = null;
-    let sheetId = null;
+    <!-- Form will be injected here -->
+    <div id="certFormContainer" class="hidden"></div>
+</div>
 
-    function lookup() {
-      sheetId = document.getElementById('sheetId').value;
-      const emis = document.getElementById('emis').value;
-      if (!sheetId || !emis) {
-        alert("Please enter both Sheet ID and EMIS Number.");
-        return;
-      }
-      toggle('step1', false);
-      toggle('loader', true);
-      google.script.run.withSuccessHandler(res => {
-        toggle('loader', false);
-        if (!res) {
-          alert("Student EMIS not found!");
-          toggle('step1', true);
-          return;
+<!-- Add this button near existing action buttons -->
+<div class="flex flex-wrap gap-2 pt-2">
+    ...
+    <button onclick="openCertificateSection()" 
+            class="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 font-medium">
+        Certificates & Applications
+    </button>
+</div>
+    <script>
+        let rawData = [];
+        let headers = [];
+        let displayedData = [];
+        let visibleColumns = new Set();
+
+        async function fetchData() {
+            const id = document.getElementById('sheetId').value.trim();
+            if (!id) return alert("Please enter a Sheet ID");
+
+            const url = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Failed to fetch");
+                const data = await response.text();
+                processData(data);
+                document.getElementById('controls').classList.remove('hidden');
+            } catch (error) {
+                alert("Error fetching data. Ensure the Sheet ID is correct and the sheet is Published to Web as CSV.");
+            }
         }
-        student = res;
-        document.getElementById('dispName').innerText = res.Name;
-        document.getElementById('dispClass').innerText = "Class: " + res.Class + " | Section: " + res.Section;
-        toggle('step2', true);
-        toggleFields(); // Initialize field visibility
-      }).getStudentData(sheetId, emis);
+
+        // Robust CSV parser
+        function parseCSV(csvText) {
+            const rows = [];
+            let currentRow = [];
+            let currentField = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < csvText.length; i++) {
+                const char = csvText[i];
+                const nextChar = csvText[i + 1];
+
+                if (char === '"') {
+                    if (inQuotes && nextChar === '"') {
+                        currentField += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    currentRow.push(currentField.trim());
+                    currentField = '';
+                } else if ((char === '\r' || char === '\n') && !inQuotes) {
+                    if (char === '\r' && nextChar === '\n') i++;
+                    currentRow.push(currentField.trim());
+                    rows.push(currentRow);
+                    currentRow = [];
+                    currentField = '';
+                } else {
+                    currentField += char;
+                }
+            }
+            if (currentField || currentRow.length) {
+                currentRow.push(currentField.trim());
+                if (currentRow.length) rows.push(currentRow);
+            }
+            return rows;
+        }
+// Add these global variables
+let selectedStudentRow = null;
+let selectedCertType = null;
+
+// New functions
+function openCertificateSection() {
+    if (displayedData.length === 0) {
+        alert("Please fetch and filter data first!");
+        return;
+    }
+    
+    if (displayedData.length > 1) {
+        alert("Please filter the table to show exactly ONE student before generating certificates.");
+        return;
     }
 
-    function toggleFields() {
-      const type = document.getElementById('docType').value;
-      document.getElementById('leaveFields').classList.toggle('hidden', type !== 'LEAVE');
-      document.getElementById('tcFields').classList.toggle('hidden', type !== 'TC');
-      document.getElementById('bonafideFields').classList.toggle('hidden', type !== 'BONAFIDE');
+    selectedStudentRow = displayedData[0];
+    document.getElementById('certificateSection').classList.remove('hidden');
+    document.querySelector('.max-w-6xl').scrollIntoView({ behavior: 'smooth' });
+}
+
+function backToMain() {
+    document.getElementById('certificateSection').classList.add('hidden');
+    document.getElementById('certFormContainer').classList.add('hidden');
+    document.getElementById('certFormContainer').innerHTML = '';
+}
+
+function startCertificateApplication(type) {
+    selectedCertType = type;
+    document.getElementById('certFormContainer').classList.remove('hidden');
+    renderCertificateForm(type);
+}
+
+function renderCertificateForm(type) {
+    const container = document.getElementById('certFormContainer');
+    let html = '';
+
+    const student = makeStudentObjectFromRow(selectedStudentRow);
+
+    if (type === 'bonafide') {
+        html = `
+        <div class="mt-8 p-6 bg-white border rounded-lg shadow-sm">
+            <h3 class="text-xl font-bold mb-6 text-indigo-700">Bonafide Certificate</h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Student Name</label>
+                    <input type="text" id="sName" value="${student.name}" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Class / Section</label>
+                    <input type="text" id="sClass" value="${student.class || ''}" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Admission No / Roll No</label>
+                    <input type="text" id="sAdmNo" value="${student.admNo || student.rollNo || ''}" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Academic Year</label>
+                    <input type="text" id="sYear" value="${student.year || '2025-2026'}" class="w-full p-2 border rounded">
+                </div>
+            </div>
+
+            <div class="mt-8">
+                <button onclick="generateCertificate('bonafide')" 
+                        class="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700">
+                    Generate & Download Bonafide Certificate
+                </button>
+            </div>
+        </div>`;
+    }
+    else if (type === 'tc') {
+        html = `... similar structure for TC ...`;
+    }
+    else if (type === 'club') {
+        html = `... add club name, activity, achievement, dates ...`;
     }
 
-    function generate() {
-      const type = document.getElementById('docType').value;
-      const formData = {
-        startDate: document.getElementById('start').value,
-        endDate: document.getElementById('end').value,
-        reason: document.getElementById('reason').value,
-        subject: document.getElementById('subject').value,
-        leavingDate: document.getElementById('leavingDate').value,
-        conduct: document.getElementById('conduct').value,
-        tcReason: document.getElementById('tcReason').value,
-        purpose: document.getElementById('purpose').value
-      };
-      
-      // Basic validation based on type
-      if (type === 'LEAVE' && (!formData.startDate || !formData.endDate || !formData.reason)) {
-        alert("Please fill in start date, end date, and reason for leave.");
+    container.innerHTML = html;
+}
+
+function makeStudentObjectFromRow(row) {
+    // Very important mapping! You must adjust column indices/names!
+    const obj = {};
+    headers.forEach((header, i) => {
+        const key = header.toLowerCase().replace(/\s+/g, '');
+        obj[key] = row[i] || '';
+    });
+    return obj;
+}
+
+// ──────────────────────────────────────────────
+//           PDF GENERATION - pdf-lib
+// ──────────────────────────────────────────────
+
+async function generateCertificate(type) {
+    if (!selectedStudentRow) return alert("No student selected!");
+
+    const student = makeStudentObjectFromRow(selectedStudentRow);
+
+    let templateUrl = '';
+
+    if (type === 'bonafide') {
+        templateUrl = "https://your-domain.com/templates/Bonafide_Certificate_Template_2025.pdf";
+        // or use base64 embedded template (better for offline)
+    } 
+    else if (type === 'tc') {
+        templateUrl = "...";
+    } 
+    else {
+        alert("Template not configured yet for this type.");
         return;
-      } else if (type === 'TC' && (!formData.leavingDate || !formData.tcReason)) {
-        alert("Please fill in date of leaving and reason for TC.");
-        return;
-      } else if (type === 'BONAFIDE' && !formData.purpose) {
-        alert("Please fill in the purpose for the bonafide certificate.");
-        return;
-      }
-      
-      toggle('step2', false);
-      toggle('loader', true);
-      
-      google.script.run.withSuccessHandler(base64 => {
-        toggle('loader', false);
-        toggle('successState', true);
-        
-        // Trigger Download
-        const link = document.createElement('a');
-        link.href = 'data:application/pdf;base64,' + base64;
-        link.download = `${type}_${student.Name}.pdf`;
-        link.click();
-        
-        // Open/Print Logic
-        document.getElementById('printBtn').onclick = () => {
-          const bin = atob(base64);
-          const arr = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-          const url = URL.createObjectURL(new Blob([arr], {type: 'application/pdf'}));
-          window.open(url, '_blank');
-        };
-      }).processRequest(sheetId, student['Emis Id'], type, formData);
     }
 
-    function toggle(id, show) {
-      document.getElementById(id).classList.toggle('hidden', !show);
+    try {
+        // 1. Load template
+        const existingPdfBytes = await fetch(templateUrl).then(res => res.arrayBuffer());
+        const pdfDoc = await PDFLib.PDFDocument.load(existingPdfBytes);
+
+        // 2. Get first page (most certificates have one page)
+        const pages = pdfDoc.getPages();
+        const firstPage = pages[0];
+
+        // 3. Draw text (you need coordinates!)
+        // These coordinates (x,y) are in points (1 mm ≈ 2.8346 pt)
+        // You need to measure them once using PDF editor or trial & error
+
+        firstPage.drawText(student.name || "________________", {
+            x: 220, y: 480, size: 14, font: await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica)
+        });
+
+        firstPage.drawText(student.class || "", {
+            x: 220, y: 445, size: 13
+        });
+
+        firstPage.drawText(student.admNo || student.rollNo || "", {
+            x: 220, y: 410, size: 13
+        });
+
+        firstPage.drawText(student.year || "2025-2026", {
+            x: 220, y: 375, size: 13
+        });
+
+        // 4. Save & download
+        const pdfBytes = await pdfDoc.save();
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${type}_certificate_${student.name || 'student'}_${new Date().toISOString().slice(0,10)}.pdf`;
+        a.click();
+
+        URL.revokeObjectURL(url);
+    } 
+    catch (err) {
+        console.error(err);
+        alert("Failed to generate certificate.\n" + err.message);
     }
-  </script>
+}
+        function processData(csvText) {
+            const rows = parseCSV(csvText);
+
+            if (rows.length === 0) {
+                alert("No data found in the sheet.");
+                return;
+            }
+
+            headers = rows[0];
+            rawData = rows.slice(1);
+            displayedData = [...rawData];
+
+            visibleColumns = new Set(headers.keys());
+
+            initControls();
+            renderTable(displayedData);
+            updateStats();
+        }
+
+        function initControls() {
+            createColumnCheckboxes();
+            document.getElementById('filterRows').innerHTML = '';
+            addFilterRow();
+        }
+
+        function createColumnCheckboxes() {
+            const container = document.getElementById('columnCheckboxes');
+            container.innerHTML = headers.map((header, i) => `
+                <label class="flex items-center p-2 bg-white border rounded cursor-pointer hover:bg-gray-50">
+                    <input type="checkbox" value="${i}" checked onchange="updateVisibleColumns()" class="mr-2 rounded">
+                    <span class="text-sm truncate" title="${escapeHtml(header)}">${escapeHtml(header)}</span>
+                </label>
+            `).join('');
+        }
+
+        function updateVisibleColumns() {
+            visibleColumns.clear();
+            document.querySelectorAll('#columnCheckboxes input:checked').forEach(cb => {
+                visibleColumns.add(parseInt(cb.value));
+            });
+            renderTable(displayedData);
+        }
+
+        function selectAllColumns() {
+            document.querySelectorAll('#columnCheckboxes input[type="checkbox"]').forEach(cb => cb.checked = true);
+            visibleColumns = new Set(headers.keys());
+            renderTable(displayedData);
+        }
+
+        function deselectAllColumns() {
+            document.querySelectorAll('#columnCheckboxes input[type="checkbox"]').forEach(cb => cb.checked = false);
+            visibleColumns.clear();
+            renderTable(displayedData);
+        }
+
+        function addFilterRow() {
+            const container = document.getElementById('filterRows');
+            const rowId = Date.now();
+
+            const filterRow = document.createElement('div');
+            filterRow.className = 'grid grid-cols-1 md:grid-cols-3 gap-2 items-end p-3 bg-gray-50 rounded-lg border';
+            filterRow.id = `filter-row-${rowId}`;
+            filterRow.innerHTML = `
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Column</label>
+                    <select class="filter-col block w-full border border-gray-300 rounded-md p-2 text-sm" data-row="${rowId}">
+                        ${headers.map((h, i) => `<option value="${i}">${escapeHtml(h)}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Value (contains)</label>
+                    <input type="text" class="filter-val block w-full border border-gray-300 rounded-md p-2 text-sm" data-row="${rowId}" placeholder="Enter filter text...">
+                </div>
+                <div>
+                    <button onclick="removeFilterRow(${rowId})" class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
+                        Remove
+                    </button>
+                </div>
+            `;
+            container.appendChild(filterRow);
+        }
+
+        function removeFilterRow(rowId) {
+            const el = document.getElementById(`filter-row-${rowId}`);
+            if (el) el.remove();
+        }
+
+        function applyFilters() {
+            const filters = [];
+            document.querySelectorAll('[data-row]').forEach(el => {
+                const rowId = el.dataset.row;
+                const isCol = el.classList.contains('filter-col');
+                const isVal = el.classList.contains('filter-val');
+
+                if (!isCol && !isVal) return;
+
+                let filter = filters.find(f => f.rowId === rowId);
+                if (!filter) {
+                    filter = { rowId };
+                    filters.push(filter);
+                }
+
+                if (isCol) filter.col = parseInt(el.value);
+                if (isVal) filter.val = el.value.trim();
+            });
+
+            displayedData = rawData.filter(row => {
+                return filters.every(f => {
+                    if (!f.val) return true;
+                    const cellValue = (row[f.col] || '').toString().toLowerCase();
+                    return cellValue.includes(f.val.toLowerCase());
+                });
+            });
+
+            renderTable(displayedData);
+            updateStats();
+        }
+
+        function clearAllFilters() {
+            document.getElementById('filterRows').innerHTML = '';
+            addFilterRow();
+            displayedData = [...rawData];
+            renderTable(displayedData);
+            updateStats();
+        }
+
+        function renderTable(dataRows) {
+            const head = document.getElementById('tableHead');
+            const body = document.getElementById('tableBody');
+
+            const visibleHeaders = headers.filter((_, i) => visibleColumns.has(i));
+
+            // Always show "Sl No" as first column
+            const tableHeaders = ['Sl No', ...visibleHeaders];
+
+            head.innerHTML = `<tr>${tableHeaders.map(h => 
+                `<th class="px-4 py-2 text-left font-semibold border whitespace-nowrap">${escapeHtml(h)}</th>`
+            ).join('')}</tr>`;
+
+            body.innerHTML = dataRows.map((row, index) => {
+                const slNo = index + 1;
+                const cells = headers.map((_, i) => 
+                    visibleColumns.has(i) ? `<td class="px-4 py-2 border">${escapeHtml(row[i] || '')}</td>` : ''
+                ).filter(Boolean).join('');
+
+                return `<tr>
+                    <td class="px-4 py-2 border text-center font-medium">${slNo}</td>
+                    ${cells}
+                </tr>`;
+            }).join('');
+        }
+
+        function updateStats() {
+            document.getElementById('rowCount').textContent = displayedData.length;
+            document.getElementById('totalCount').textContent = rawData.length;
+            document.getElementById('stats').classList.remove('hidden');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('l', 'mm', 'a4');
+
+            const visibleHeaders = headers.filter((_, i) => visibleColumns.has(i));
+            const pdfHeaders = ['Sl No', ...visibleHeaders];
+
+            const pdfData = displayedData.map((row, index) => {
+                const slNo = index + 1;
+                const rowData = headers.map((_, i) => 
+                    visibleColumns.has(i) ? (row[i] || '') : ''
+                ).filter(Boolean);
+                return [slNo, ...rowData];
+            });
+
+            doc.autoTable({
+                head: [pdfHeaders],
+                body: pdfData,
+                styles: { fontSize: 8, cellPadding: 3 },
+                headStyles: { fillColor: [100, 149, 237] },
+                margin: { top: 20 },
+                didDrawPage: (data) => {
+                    doc.text(`Sheet Data - ${displayedData.length} rows`, 14, 15);
+                }
+            });
+
+            doc.save(`sheet_data_${new Date().toISOString().slice(0,10)}.pdf`);
+        }
+    </script>
 </body>
 </html>
