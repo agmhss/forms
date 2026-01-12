@@ -3,34 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Sheet Data Retriever</title>
+    <title>School Data & Certificate Generator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 </head>
-<body class="bg-gray-50 p-8">
-
+<body class="bg-gray-50 p-4 md:p-8 font-sans">
     <div class="max-w-6xl mx-auto bg-white p-6 rounded-lg shadow-md">
-        <h1 class="text-2xl font-bold mb-6 text-gray-800">Advanced Google Sheet Data Retriever</h1>
-        
+        <h1 class="text-2xl md:text-3xl font-bold mb-6 text-gray-800 text-center">School Student Data & Certificate Tool</h1>
+
+        <!-- Sheet Input -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
                 <label class="block text-sm font-medium text-gray-700">Google Sheet ID</label>
-                <input type="text" id="sheetId" placeholder="Enter Sheet ID..." class="mt-1 block w-full border border-gray-300 rounded-md p-2 shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                <p class="text-xs text-gray-500 mt-1">Ensure the sheet is "Published to Web" as CSV.</p>
+                <input type="text" id="sheetId" placeholder="Enter Sheet ID (from URL)" 
+                       class="mt-1 block w-full border border-gray-300 rounded-md p-2 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                <p class="text-xs text-gray-500 mt-1">Sheet must be published to web → File → Share → Publish to web → CSV format</p>
             </div>
             <div class="flex items-end">
-                <button onclick="fetchData()" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition">Fetch Data</button>
+                <button onclick="fetchData()" 
+                        class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition w-full md:w-auto">
+                    Fetch Data
+                </button>
             </div>
         </div>
 
         <hr class="my-6">
 
+        <!-- Controls (hidden until data loaded) -->
         <div id="controls" class="hidden space-y-6">
             <!-- Column Selection -->
             <div>
                 <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-lg font-semibold text-gray-800">Column Selection</h3>
+                    <h3 class="text-lg font-semibold text-gray-800">Select Columns to Show</h3>
                     <div class="space-x-2">
                         <button onclick="selectAllColumns()" class="bg-green-600 text-white px-3 py-1 text-sm rounded hover:bg-green-700">Select All</button>
                         <button onclick="deselectAllColumns()" class="bg-gray-600 text-white px-3 py-1 text-sm rounded hover:bg-gray-700">Deselect All</button>
@@ -39,21 +45,25 @@
                 <div id="columnCheckboxes" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-40 overflow-y-auto p-2 border rounded-md bg-gray-50"></div>
             </div>
 
-            <!-- Multi-Column Filters -->
+            <!-- Filters -->
             <div>
-                <h3 class="text-lg font-semibold text-gray-800 mb-3">Filters (AND logic – contains)</h3>
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">Filters (contains text – AND logic)</h3>
                 <div id="filterRows" class="space-y-2"></div>
                 <button onclick="addFilterRow()" class="mt-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">+ Add Filter</button>
             </div>
 
-            <!-- Action Buttons -->
-            <div class="flex flex-wrap gap-2 pt-2">
+            <!-- Actions -->
+            <div class="flex flex-wrap gap-3 pt-2">
                 <button onclick="applyFilters()" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 font-medium">Apply Filters</button>
-                <button onclick="clearAllFilters()" class="bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-700 font-medium">Clear All</button>
-                <button onclick="downloadPDF()" class="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700 font-medium">Download PDF</button>
+                <button onclick="clearAllFilters()" class="bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-700 font-medium">Clear Filters</button>
+                <button onclick="downloadPDF()" class="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700 font-medium">Download Table as PDF</button>
+                <button onclick="openCertificateSection()" class="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 font-medium">
+                    Generate Certificates / Applications
+                </button>
             </div>
         </div>
 
+        <!-- Data Table -->
         <div class="mt-8 overflow-x-auto">
             <table id="dataTable" class="min-w-full divide-y divide-gray-200 border text-sm">
                 <thead class="bg-gray-100" id="tableHead"></thead>
@@ -61,127 +71,105 @@
             </table>
         </div>
 
-        <div id="stats" class="mt-4 text-sm text-gray-600 hidden">
+        <div id="stats" class="mt-4 text-sm text-gray-600 hidden text-center">
             Showing <span id="rowCount">0</span> of <span id="totalCount">0</span> rows
         </div>
-    </div>
-<!-- Add to <head> -->
-<script const BLANK_BONAFIDE_BASE64 = "JVBERi0xLjcKJeLjz9MKMSAwIG9iaiA8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iaiA8PC9UeXBlL1BhZ2VzL0NvdW50IDEvS2lkc1szIDAgUl0+PgplbmRvYmoKMyAwIG9iaiA8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL1Jlc291cmNlczw8L0ZvbnQ8PC9GMSA0IDAgUj4+Pj4vTWVkaWFCb3hbMCAwIDU5NSA4NDJdL0NvbnRlbnRzIDUgMCBSPj4lQTRQYWdlCmVuZG9iago0IDAgRW50cnkgPDwvVHlwZS9Gb250L1N1YnR5cGUvVHlwZTEvQmFzZUZvbnQvSGVsdmV0aWNhPj4KNSAwIG9iaiA8PC9MZW5ndGggMjU2Pj5zdHJlYW0KMSAwIDAgMSAxNTAgNzg2IFRtCi9GMSAyNCBUZgozMCAwIDAgMzAgMCAwIFRtCihCT05BRklERSBDRVJUSUZJQ0FURSkgVGoKMSAwIDAgMSA1MCA2NTAgVG0KL0YxIDE0IFRmCihUaGlzIGlzIHRvIGNlcnRpZnkgdGhhdCBNci4vTXMuID______________________IGlzIGEgYm9uYWZpZGUpIFRqCjAgLTIwIFRkCihzdHVkZW50IG9mIGNsYXNzIF9fX19fX19fX19fXyBiZWFyaW5nIEFkbWlzc2lvbiBObyBfX19fX19fX19fXykgVGoKMCAtMjAgVGQKK2R1cmluZyB0aGUgYWNhZGVtaWMgeWVhciBfX19fX19fX19fXy4pIFRqCjAgLTYwIFRkCihEYXRlOiBfX19fX19fX18pIFRqCjAgMCBUZAo0MDAgMCBUZChTaWduYXR1cmUpIFRqCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDAwNjAgMDAwMDAgbiAKMDAwMDAwMDExMSAwMDAwMCBuIAowMDAwMDAwMjQzIDAwMDAwIG4gCjAwMDAwMDAzMTEgMDAwMDAgbiAKdHJhaWxlciA8PC9TaXplIDYvUm9vdCAxIDAgUj4+CnN0YXJ0eHJlZgo2MzAKJSVFT0Y=";
-    src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 
-<!-- ==================== NEW SECTION ==================== -->
-<div id="certificateSection" class="hidden mt-10">
+        <!-- Certificate Section -->
+        <div id="certificateSection" class="hidden mt-12">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">Certificate / Application Generator</h2>
+                <button onclick="backToMain()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
+                    ← Back to Main View
+                </button>
+            </div>
 
-    <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-bold text-gray-800">Certificate Application & Generation</h2>
-        <button onclick="backToMain()" 
-                class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700">
-            ← Back to Main View
-        </button>
-    </div>
+            <div class="mb-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
+                <h3 class="text-lg font-semibold mb-4">Select Document Type</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <button onclick="startCertificateApplication('bonafide')"
+                            class="bg-white border-2 border-indigo-500 text-indigo-700 hover:bg-indigo-50 p-6 rounded-xl text-center transition">
+                        <div class="text-2xl mb-2">📜</div>
+                        <div class="font-medium">Bonafide Certificate</div>
+                    </button>
+                    <button onclick="startCertificateApplication('tc')"
+                            class="bg-white border-2 border-purple-500 text-purple-700 hover:bg-purple-50 p-6 rounded-xl text-center transition">
+                        <div class="text-2xl mb-2">🎓</div>
+                        <div>Transfer Certificate (TC)</div>
+                    </button>
+                    <button onclick="startCertificateApplication('club')"
+                            class="bg-white border-2 border-green-500 text-green-700 hover:bg-green-50 p-6 rounded-xl text-center transition">
+                        <div class="text-2xl mb-2">🏆</div>
+                        <div>Club Activity Certificate</div>
+                    </button>
+                </div>
+            </div>
 
-    <!-- Certificate Type Selection -->
-    <div class="mb-8 p-6 bg-blue-50 rounded-lg border border-blue-200">
-        <h3 class="text-lg font-semibold mb-4">Select Certificate Type</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <button onclick="startCertificateApplication('bonafide')"
-                    class="bg-white border-2 border-indigo-500 text-indigo-700 hover:bg-indigo-50 p-6 rounded-xl text-center transition">
-                <div class="text-2xl mb-2">📜</div>
-                <div class="font-medium">Bonafide Certificate</div>
-            </button>
-
-            <button onclick="startCertificateApplication('tc')"
-                    class="bg-white border-2 border-purple-500 text-purple-700 hover:bg-purple-50 p-6 rounded-xl text-center transition">
-                <div class="text-2xl mb-2">🎓</div>
-                <div>Transfer Certificate (TC)</div>
-            </button>
-
-            <button onclick="startCertificateApplication('club')"
-                    class="bg-white border-2 border-green-500 text-green-700 hover:bg-green-50 p-6 rounded-xl text-center transition">
-                <div class="text-2xl mb-2">🏆</div>
-                <div>Club Activity Certificate</div>
-            </button>
-
-            <!-- You can add more types later -->
+            <div id="certFormContainer" class="hidden"></div>
         </div>
     </div>
 
-    <!-- Form will be injected here -->
-    <div id="certFormContainer" class="hidden"></div>
-</div>
-
-<!-- Add this button near existing action buttons -->
-<div class="flex flex-wrap gap-2 pt-2">
-    ...
-    <button onclick="openCertificateSection()" 
-            class="bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700 font-medium">
-        Certificates & Applications
-    </button>
-</div>
     <script>
+        // ──────────────────────────────────────────────
+        // Global Variables
+        // ──────────────────────────────────────────────
         let rawData = [];
         let headers = [];
         let displayedData = [];
         let visibleColumns = new Set();
+        let selectedStudentRow = null;
+        let selectedCertType = null;
 
-        async function generateCertificate(type) {
-    if (!selectedStudentRow) return alert("No student selected!");
+        // Template URLs – REPLACE THESE WITH YOUR ACTUAL GITHUB RAW LINKS
+        const TEMPLATE_URLS = {
+            bonafide: "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/templates/Bonafide_Template.pdf",
+            tc:       "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/templates/TC_Template.pdf",
+            club:     "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/templates/Club_Certificate_Template.pdf"
+        };
 
-    // Get values from the UI form
-    const studentData = {
-        name: document.getElementById('sName').value,
-        class: document.getElementById('sClass').value,
-        admNo: document.getElementById('sAdmNo').value,
-        year: document.getElementById('sYear').value
-    };
+        // ──────────────────────────────────────────────
+        // Main Functions
+        // ──────────────────────────────────────────────
+        async function fetchData() {
+            const sheetId = document.getElementById('sheetId').value.trim();
+            if (!sheetId) return alert("Please enter a Sheet ID");
 
-    try {
-        // 1. Decode the Base64 template
-        const pdfBytes = Uint8Array.from(atob(BLANK_BONAFIDE_BASE64), c => c.charCodeAt(0));
-        const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
-        
-        // 2. Setup Fonts
-        const font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica_Bold);
-        const page = pdfDoc.getPages()[0];
+            const url = `https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Sheet not found or not published");
+                const csvText = await response.text();
+                processData(csvText);
+                document.getElementById('controls').classList.remove('hidden');
+            } catch (err) {
+                alert("Error loading sheet: " + err.message + "\nMake sure it's published as CSV.");
+            }
+        }
 
-        // 3. Draw the data onto the PDF
-        // Adjust these X, Y values if you switch to your own custom template later
-        page.drawText(studentData.name, { x: 195, y: 651, size: 14, font });
-        page.drawText(studentData.class, { x: 160, y: 631, size: 14, font });
-        page.drawText(studentData.admNo, { x: 345, y: 631, size: 14, font });
-        page.drawText(studentData.year, { x: 215, y: 611, size: 14, font });
-        
-        // Auto-fill today's date
-        const today = new Date().toLocaleDateString();
-        page.drawText(today, { x: 90, y: 551, size: 12, font });
+        function processData(csvText) {
+            const rows = parseCSV(csvText);
+            if (rows.length === 0) {
+                alert("No data found in the sheet.");
+                return;
+            }
+            headers = rows[0];
+            rawData = rows.slice(1);
+            displayedData = [...rawData];
+            visibleColumns = new Set(headers.keys());
+            initControls();
+            renderTable(displayedData);
+            updateStats();
+        }
 
-        // 4. Save and Download
-        const savedBytes = await pdfDoc.save();
-        const blob = new Blob([savedBytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `Bonafide_${studentData.name.replace(/\s+/g, '_')}.pdf`;
-        link.click();
-        
-        URL.revokeObjectURL(url);
-    } catch (err) {
-        console.error("PDF Generation Error:", err);
-        alert("Could not generate PDF. Check console for details.");
-    }
-}
         // Robust CSV parser
         function parseCSV(csvText) {
             const rows = [];
             let currentRow = [];
             let currentField = '';
             let inQuotes = false;
-
             for (let i = 0; i < csvText.length; i++) {
                 const char = csvText[i];
-                const nextChar = csvText[i + 1];
-
+                const nextChar = csvText[i + 1] || '';
                 if (char === '"') {
                     if (inQuotes && nextChar === '"') {
                         currentField += '"';
@@ -207,184 +195,6 @@
                 if (currentRow.length) rows.push(currentRow);
             }
             return rows;
-        }
-// Add these global variables
-let selectedStudentRow = null;
-let selectedCertType = null;
-
-// New functions
-function openCertificateSection() {
-    if (displayedData.length === 0) {
-        alert("Please fetch and filter data first!");
-        return;
-    }
-    
-    if (displayedData.length > 1) {
-        alert("Please filter the table to show exactly ONE student before generating certificates.");
-        return;
-    }
-
-    selectedStudentRow = displayedData[0];
-    document.getElementById('certificateSection').classList.remove('hidden');
-    document.querySelector('.max-w-6xl').scrollIntoView({ behavior: 'smooth' });
-}
-
-function backToMain() {
-    document.getElementById('certificateSection').classList.add('hidden');
-    document.getElementById('certFormContainer').classList.add('hidden');
-    document.getElementById('certFormContainer').innerHTML = '';
-}
-
-function startCertificateApplication(type) {
-    selectedCertType = type;
-    document.getElementById('certFormContainer').classList.remove('hidden');
-    renderCertificateForm(type);
-}
-
-function renderCertificateForm(type) {
-    const container = document.getElementById('certFormContainer');
-    let html = '';
-
-    const student = makeStudentObjectFromRow(selectedStudentRow);
-
-    if (type === 'bonafide') {
-        html = `
-        <div class="mt-8 p-6 bg-white border rounded-lg shadow-sm">
-            <h3 class="text-xl font-bold mb-6 text-indigo-700">Bonafide Certificate</h3>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-sm font-medium mb-1">Student Name</label>
-                    <input type="text" id="sName" value="${student.name}" class="w-full p-2 border rounded">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Class / Section</label>
-                    <input type="text" id="sClass" value="${student.class || ''}" class="w-full p-2 border rounded">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Admission No / Roll No</label>
-                    <input type="text" id="sAdmNo" value="${student.admNo || student.rollNo || ''}" class="w-full p-2 border rounded">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Academic Year</label>
-                    <input type="text" id="sYear" value="${student.year || '2025-2026'}" class="w-full p-2 border rounded">
-                </div>
-            </div>
-
-            <div class="mt-8">
-                <button onclick="generateCertificate('bonafide')" 
-                        class="bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700">
-                    Generate & Download Bonafide Certificate
-                </button>
-            </div>
-        </div>`;
-    }
-    else if (type === 'tc') {
-        html = `... similar structure for TC ...`;
-    }
-    else if (type === 'club') {
-        html = `... add club name, activity, achievement, dates ...`;
-    }
-
-    container.innerHTML = html;
-}
-
-function makeStudentObjectFromRow(row) {
-    // Very important mapping! You must adjust column indices/names!
-    const obj = {};
-    headers.forEach((header, i) => {
-        const key = header.toLowerCase().replace(/\s+/g, '');
-        obj[key] = row[i] || '';
-    });
-    return obj;
-}
-
-// ──────────────────────────────────────────────
-//           PDF GENERATION - pdf-lib
-// ──────────────────────────────────────────────
-
-async function generateCertificate(type) {
-    if (!selectedStudentRow) return alert("No student selected!");
-
-    const student = makeStudentObjectFromRow(selectedStudentRow);
-
-    let templateUrl = '';
-
-    if (type === 'bonafide') {
-        templateUrl = "https://your-domain.com/templates/Bonafide_Certificate_Template_2025.pdf";
-        // or use base64 embedded template (better for offline)
-    } 
-    else if (type === 'tc') {
-        templateUrl = "...";
-    } 
-    else {
-        alert("Template not configured yet for this type.");
-        return;
-    }
-
-    try {
-        // 1. Load template
-        const existingPdfBytes = await fetch(templateUrl).then(res => res.arrayBuffer());
-        const pdfDoc = await PDFLib.PDFDocument.load(existingPdfBytes);
-
-        // 2. Get first page (most certificates have one page)
-        const pages = pdfDoc.getPages();
-        const firstPage = pages[0];
-
-        // 3. Draw text (you need coordinates!)
-        // These coordinates (x,y) are in points (1 mm ≈ 2.8346 pt)
-        // You need to measure them once using PDF editor or trial & error
-
-        firstPage.drawText(student.name || "________________", {
-            x: 220, y: 480, size: 14, font: await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica)
-        });
-
-        firstPage.drawText(student.class || "", {
-            x: 220, y: 445, size: 13
-        });
-
-        firstPage.drawText(student.admNo || student.rollNo || "", {
-            x: 220, y: 410, size: 13
-        });
-
-        firstPage.drawText(student.year || "2025-2026", {
-            x: 220, y: 375, size: 13
-        });
-
-        // 4. Save & download
-        const pdfBytes = await pdfDoc.save();
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${type}_certificate_${student.name || 'student'}_${new Date().toISOString().slice(0,10)}.pdf`;
-        a.click();
-
-        URL.revokeObjectURL(url);
-    } 
-    catch (err) {
-        console.error(err);
-        alert("Failed to generate certificate.\n" + err.message);
-    }
-}
-        function processData(csvText) {
-            const rows = parseCSV(csvText);
-
-            if (rows.length === 0) {
-                alert("No data found in the sheet.");
-                return;
-            }
-
-            headers = rows[0];
-            rawData = rows.slice(1);
-            displayedData = [...rawData];
-
-            visibleColumns = new Set(headers.keys());
-
-            initControls();
-            renderTable(displayedData);
-            updateStats();
         }
 
         function initControls() {
@@ -423,10 +233,12 @@ async function generateCertificate(type) {
             renderTable(displayedData);
         }
 
+        // ──────────────────────────────────────────────
+        // Filtering
+        // ──────────────────────────────────────────────
         function addFilterRow() {
             const container = document.getElementById('filterRows');
             const rowId = Date.now();
-
             const filterRow = document.createElement('div');
             filterRow.className = 'grid grid-cols-1 md:grid-cols-3 gap-2 items-end p-3 bg-gray-50 rounded-lg border';
             filterRow.id = `filter-row-${rowId}`;
@@ -439,10 +251,10 @@ async function generateCertificate(type) {
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-700 mb-1">Value (contains)</label>
-                    <input type="text" class="filter-val block w-full border border-gray-300 rounded-md p-2 text-sm" data-row="${rowId}" placeholder="Enter filter text...">
+                    <input type="text" class="filter-val block w-full border border-gray-300 rounded-md p-2 text-sm" data-row="${rowId}" placeholder="e.g. Class 10">
                 </div>
                 <div>
-                    <button onclick="removeFilterRow(${rowId})" class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
+                    <button onclick="removeFilterRow('${rowId}')" class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">
                         Remove
                     </button>
                 </div>
@@ -451,34 +263,27 @@ async function generateCertificate(type) {
         }
 
         function removeFilterRow(rowId) {
-            const el = document.getElementById(`filter-row-${rowId}`);
-            if (el) el.remove();
+            document.getElementById(`filter-row-${rowId}`)?.remove();
         }
 
         function applyFilters() {
             const filters = [];
-            document.querySelectorAll('[data-row]').forEach(el => {
+            document.querySelectorAll('#filterRows [data-row]').forEach(el => {
                 const rowId = el.dataset.row;
-                const isCol = el.classList.contains('filter-col');
-                const isVal = el.classList.contains('filter-val');
-
-                if (!isCol && !isVal) return;
-
                 let filter = filters.find(f => f.rowId === rowId);
                 if (!filter) {
                     filter = { rowId };
                     filters.push(filter);
                 }
-
-                if (isCol) filter.col = parseInt(el.value);
-                if (isVal) filter.val = el.value.trim();
+                if (el.classList.contains('filter-col')) filter.col = parseInt(el.value);
+                if (el.classList.contains('filter-val')) filter.val = el.value.trim();
             });
 
             displayedData = rawData.filter(row => {
                 return filters.every(f => {
                     if (!f.val) return true;
-                    const cellValue = (row[f.col] || '').toString().toLowerCase();
-                    return cellValue.includes(f.val.toLowerCase());
+                    const cell = (row[f.col] || '').toString().toLowerCase();
+                    return cell.includes(f.val.toLowerCase());
                 });
             });
 
@@ -494,13 +299,13 @@ async function generateCertificate(type) {
             updateStats();
         }
 
+        // ──────────────────────────────────────────────
+        // Table Rendering
+        // ──────────────────────────────────────────────
         function renderTable(dataRows) {
             const head = document.getElementById('tableHead');
             const body = document.getElementById('tableBody');
-
             const visibleHeaders = headers.filter((_, i) => visibleColumns.has(i));
-
-            // Always show "Sl No" as first column
             const tableHeaders = ['Sl No', ...visibleHeaders];
 
             head.innerHTML = `<tr>${tableHeaders.map(h => 
@@ -512,8 +317,7 @@ async function generateCertificate(type) {
                 const cells = headers.map((_, i) => 
                     visibleColumns.has(i) ? `<td class="px-4 py-2 border">${escapeHtml(row[i] || '')}</td>` : ''
                 ).filter(Boolean).join('');
-
-                return `<tr>
+                return `<tr class="hover:bg-gray-50 cursor-pointer" onclick="selectRow(${index})">
                     <td class="px-4 py-2 border text-center font-medium">${slNo}</td>
                     ${cells}
                 </tr>`;
@@ -532,18 +336,173 @@ async function generateCertificate(type) {
             return div.innerHTML;
         }
 
+        // ──────────────────────────────────────────────
+        // Student Selection for Certificates
+        // ──────────────────────────────────────────────
+        function selectRow(index) {
+            selectedStudentRow = displayedData[index];
+            alert(`Selected student: ${makeStudentObjectFromRow(selectedStudentRow).name || 'Unnamed'}\nNow go to Certificates section.`);
+        }
+
+        function openCertificateSection() {
+            if (displayedData.length === 0) {
+                alert("Please fetch and filter data first!");
+                return;
+            }
+            if (displayedData.length > 1 && !selectedStudentRow) {
+                alert("Please filter to show only ONE student\nOR click a row in the table to select a student.");
+                return;
+            }
+            if (!selectedStudentRow) selectedStudentRow = displayedData[0];
+            document.getElementById('certificateSection').classList.remove('hidden');
+            document.getElementById('certFormContainer').classList.add('hidden');
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+
+        function backToMain() {
+            document.getElementById('certificateSection').classList.add('hidden');
+            document.getElementById('certFormContainer').classList.add('hidden');
+            document.getElementById('certFormContainer').innerHTML = '';
+        }
+
+        function startCertificateApplication(type) {
+            selectedCertType = type;
+            document.getElementById('certFormContainer').classList.remove('hidden');
+            renderCertificateForm(type);
+        }
+
+        function renderCertificateForm(type) {
+            const container = document.getElementById('certFormContainer');
+            const student = makeStudentObjectFromRow(selectedStudentRow);
+            let html = '';
+
+            if (type === 'bonafide') {
+                html = `
+                <div class="mt-8 p-6 bg-white border rounded-lg shadow-sm">
+                    <h3 class="text-xl font-bold mb-6 text-indigo-700">Bonafide Certificate</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Student Name</label>
+                            <input type="text" id="sName" value="${student.name || ''}" class="w-full p-2 border rounded">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Class / Section</label>
+                            <input type="text" id="sClass" value="${student.class || ''}" class="w-full p-2 border rounded">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Admission No / Roll No</label>
+                            <input type="text" id="sAdmNo" value="${student['admno'] || student['rollno'] || ''}" class="w-full p-2 border rounded">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Academic Year</label>
+                            <input type="text" id="sYear" value="${student.year || '2025-2026'}" class="w-full p-2 border rounded">
+                        </div>
+                    </div>
+                    <div class="mt-8 text-center">
+                        <button onclick="generateCertificate('bonafide')" 
+                                class="bg-green-600 text-white px-10 py-3 rounded-lg hover:bg-green-700 font-medium">
+                            Generate & Download Bonafide Certificate
+                        </button>
+                    </div>
+                </div>`;
+            } else {
+                html = `<div class="mt-8 p-6 bg-white border rounded-lg shadow-sm text-center">
+                    <h3 class="text-xl font-bold mb-6 text-gray-700">${type.toUpperCase()} Certificate</h3>
+                    <p class="text-gray-600">Form for ${type} not implemented yet.<br>Please add it in renderCertificateForm().</p>
+                </div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function makeStudentObjectFromRow(row) {
+            const obj = {};
+            headers.forEach((header, i) => {
+                const key = header.toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/gi, '');
+                obj[key] = row[i] || '';
+            });
+            return obj;
+        }
+
+        // ──────────────────────────────────────────────
+        // PDF Certificate Generation (pdf-lib)
+        // ──────────────────────────────────────────────
+        async function generateCertificate(type) {
+            if (!selectedStudentRow) return alert("No student selected!");
+
+            const student = makeStudentObjectFromRow(selectedStudentRow);
+            const templateUrl = TEMPLATE_URLS[type];
+
+            if (!templateUrl) {
+                alert(`No template configured for ${type}. Please update TEMPLATE_URLS.`);
+                return;
+            }
+
+            const generateBtn = event.target;
+            generateBtn.disabled = true;
+            generateBtn.innerText = "Generating...";
+
+            try {
+                const response = await fetch(templateUrl);
+                if (!response.ok) throw new Error(`Template not found: ${response.statusText}`);
+                const pdfBytes = await response.arrayBuffer();
+
+                const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+                const font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+                const boldFont = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+
+                const page = pdfDoc.getPages()[0];
+                const { height } = page.getSize();
+
+                // ─── ADJUST THESE COORDINATES TO MATCH YOUR TEMPLATE ───
+                // Use trial & error or a PDF ruler tool
+                page.drawText(student.name || "_______________________", {
+                    x: 180, y: height - 180, size: 14, font: boldFont
+                });
+
+                page.drawText(student.class || "________", {
+                    x: 180, y: height - 220, size: 13, font
+                });
+
+                page.drawText(student.admno || student.rollno || "________", {
+                    x: 320, y: height - 220, size: 13, font
+                });
+
+                page.drawText(student.year || "2025-2026", {
+                    x: 180, y: height - 260, size: 13, font
+                });
+
+                const today = new Date().toLocaleDateString('en-IN');
+                page.drawText(today, {
+                    x: 100, y: 120, size: 12, font
+                });
+
+                const pdfDataUri = await pdfDoc.saveAsBase64({ dataUri: true });
+                const link = document.createElement('a');
+                link.href = pdfDataUri;
+                link.download = `${type.toUpperCase()}_${(student.name || 'student').replace(/\s+/g, '_')}_${today.replace(/\//g, '-')}.pdf`;
+                link.click();
+
+            } catch (err) {
+                console.error("Certificate error:", err);
+                alert("Failed to generate certificate:\n" + err.message + "\n\nCheck console (F12) for more details.");
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.innerText = `Generate ${type.charAt(0).toUpperCase() + type.slice(1)} Certificate`;
+            }
+        }
+
+        // ──────────────────────────────────────────────
+        // Table Export to PDF (jsPDF)
+        // ──────────────────────────────────────────────
         function downloadPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('l', 'mm', 'a4');
-
             const visibleHeaders = headers.filter((_, i) => visibleColumns.has(i));
             const pdfHeaders = ['Sl No', ...visibleHeaders];
-
             const pdfData = displayedData.map((row, index) => {
                 const slNo = index + 1;
-                const rowData = headers.map((_, i) => 
-                    visibleColumns.has(i) ? (row[i] || '') : ''
-                ).filter(Boolean);
+                const rowData = headers.map((_, i) => visibleColumns.has(i) ? (row[i] || '') : '').filter(Boolean);
                 return [slNo, ...rowData];
             });
 
@@ -553,12 +512,12 @@ async function generateCertificate(type) {
                 styles: { fontSize: 8, cellPadding: 3 },
                 headStyles: { fillColor: [100, 149, 237] },
                 margin: { top: 20 },
-                didDrawPage: (data) => {
-                    doc.text(`Sheet Data - ${displayedData.length} rows`, 14, 15);
+                didDrawPage: () => {
+                    doc.text(`Student Data - ${displayedData.length} records`, 14, 15);
                 }
             });
 
-            doc.save(`sheet_data_${new Date().toISOString().slice(0,10)}.pdf`);
+            doc.save(`student_data_${new Date().toISOString().slice(0,10)}.pdf`);
         }
     </script>
 </body>
