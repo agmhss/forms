@@ -131,31 +131,21 @@
         // Main Functions
         // ──────────────────────────────────────────────
        async function fetchData() {
-    const sheetId = document.getElementById('sheetId').value.trim();
-    if (!sheetId) return alert("Please enter a Sheet ID");
+            const id = document.getElementById('sheetId').value.trim();
+            if (!id) return alert("Please enter a Sheet ID");
 
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv`;
-    try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            const text = await response.text();
-            if (text.includes("does not exist")) {
-                throw new Error("Sheet not published or link invalid (404 error). Republish the sheet.");
-            } else if (text.includes("login")) {
-                throw new Error("Sheet requires login – make sure it's shared with 'Anyone with the link'");
-            } else {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const url = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`;
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Failed to fetch");
+                const data = await response.text();
+                processData(data);
+                document.getElementById('controls').classList.remove('hidden');
+            } catch (error) {
+                alert("Error fetching data. Ensure the Sheet ID is correct and the sheet is Published to Web as CSV.");
             }
         }
-        const csvText = await response.text();
-        processData(csvText);
-        document.getElementById('controls').classList.remove('hidden');
-    } catch (err) {
-        console.error("Fetch failed:", err, url);
-        alert("Error: " + err.message + "\n\nURL tried: " + url + "\n\nTry republishing the sheet or check the direct URL in browser.");
-    }
-}
-
         function processData(csvText) {
             const rows = parseCSV(csvText);
             if (rows.length === 0) {
