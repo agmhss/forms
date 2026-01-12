@@ -66,7 +66,8 @@
         </div>
     </div>
 <!-- Add to <head> -->
-<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+<script const BLANK_BONAFIDE_BASE64 = "JVBERi0xLjcKJeLjz9MKMSAwIG9iaiA8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iaiA8PC9UeXBlL1BhZ2VzL0NvdW50IDEvS2lkc1szIDAgUl0+PgplbmRvYmoKMyAwIG9iaiA8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL1Jlc291cmNlczw8L0ZvbnQ8PC9GMSA0IDAgUj4+Pj4vTWVkaWFCb3hbMCAwIDU5NSA4NDJdL0NvbnRlbnRzIDUgMCBSPj4lQTRQYWdlCmVuZG9iago0IDAgRW50cnkgPDwvVHlwZS9Gb250L1N1YnR5cGUvVHlwZTEvQmFzZUZvbnQvSGVsdmV0aWNhPj4KNSAwIG9iaiA8PC9MZW5ndGggMjU2Pj5zdHJlYW0KMSAwIDAgMSAxNTAgNzg2IFRtCi9GMSAyNCBUZgozMCAwIDAgMzAgMCAwIFRtCihCT05BRklERSBDRVJUSUZJQ0FURSkgVGoKMSAwIDAgMSA1MCA2NTAgVG0KL0YxIDE0IFRmCihUaGlzIGlzIHRvIGNlcnRpZnkgdGhhdCBNci4vTXMuID______________________IGlzIGEgYm9uYWZpZGUpIFRqCjAgLTIwIFRkCihzdHVkZW50IG9mIGNsYXNzIF9fX19fX19fX19fXyBiZWFyaW5nIEFkbWlzc2lvbiBObyBfX19fX19fX19fXykgVGoKMCAtMjAgVGQKK2R1cmluZyB0aGUgYWNhZGVtaWMgeWVhciBfX19fX19fX19fXy4pIFRqCjAgLTYwIFRkCihEYXRlOiBfX19fX19fX18pIFRqCjAgMCBUZAo0MDAgMCBUZChTaWduYXR1cmUpIFRqCmVuZHN0cmVhbQplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDE1IDAwMDAwIG4gCjAwMDAwMDAwNjAgMDAwMDAgbiAKMDAwMDAwMDExMSAwMDAwMCBuIAowMDAwMDAwMjQzIDAwMDAwIG4gCjAwMDAwMDAzMTEgMDAwMDAgbiAKdHJhaWxlciA8PC9TaXplIDYvUm9vdCAxIDAgUj4+CnN0YXJ0eHJlZgo2MzAKJSVFT0Y=";
+    src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 
 <!-- ==================== NEW SECTION ==================== -->
 <div id="certificateSection" class="hidden mt-10">
@@ -123,23 +124,53 @@
         let displayedData = [];
         let visibleColumns = new Set();
 
-        async function fetchData() {
-            const id = document.getElementById('sheetId').value.trim();
-            if (!id) return alert("Please enter a Sheet ID");
+        async function generateCertificate(type) {
+    if (!selectedStudentRow) return alert("No student selected!");
 
-            const url = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`;
+    // Get values from the UI form
+    const studentData = {
+        name: document.getElementById('sName').value,
+        class: document.getElementById('sClass').value,
+        admNo: document.getElementById('sAdmNo').value,
+        year: document.getElementById('sYear').value
+    };
 
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("Failed to fetch");
-                const data = await response.text();
-                processData(data);
-                document.getElementById('controls').classList.remove('hidden');
-            } catch (error) {
-                alert("Error fetching data. Ensure the Sheet ID is correct and the sheet is Published to Web as CSV.");
-            }
-        }
+    try {
+        // 1. Decode the Base64 template
+        const pdfBytes = Uint8Array.from(atob(BLANK_BONAFIDE_BASE64), c => c.charCodeAt(0));
+        const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+        
+        // 2. Setup Fonts
+        const font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica_Bold);
+        const page = pdfDoc.getPages()[0];
 
+        // 3. Draw the data onto the PDF
+        // Adjust these X, Y values if you switch to your own custom template later
+        page.drawText(studentData.name, { x: 195, y: 651, size: 14, font });
+        page.drawText(studentData.class, { x: 160, y: 631, size: 14, font });
+        page.drawText(studentData.admNo, { x: 345, y: 631, size: 14, font });
+        page.drawText(studentData.year, { x: 215, y: 611, size: 14, font });
+        
+        // Auto-fill today's date
+        const today = new Date().toLocaleDateString();
+        page.drawText(today, { x: 90, y: 551, size: 12, font });
+
+        // 4. Save and Download
+        const savedBytes = await pdfDoc.save();
+        const blob = new Blob([savedBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Bonafide_${studentData.name.replace(/\s+/g, '_')}.pdf`;
+        link.click();
+        
+        URL.revokeObjectURL(url);
+    } catch (err) {
+        console.error("PDF Generation Error:", err);
+        alert("Could not generate PDF. Check console for details.");
+    }
+}
         // Robust CSV parser
         function parseCSV(csvText) {
             const rows = [];
